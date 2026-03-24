@@ -89,8 +89,13 @@ client.on('disconnected', (reason) => {
 // ============================================================
 // HANDLER DE MENSAGENS
 // ============================================================
-client.on('message', async (msg) => {
-  // Ignora mensagens de grupos (mude para false se quiser responder em grupos)
+// Usa message_create para capturar mensagens enviadas pelo próprio usuário (para si mesmo)
+client.on('message_create', async (msg) => {
+  // Só processa mensagens enviadas PELO usuário (fromMe = true)
+  // Isso permite usar o WhatsApp como "caderno pessoal" — manda para si mesmo
+  if (!msg.fromMe) return;
+
+  // Ignora mensagens de grupos
   if (msg.isGroupMsg) return;
 
   try {
