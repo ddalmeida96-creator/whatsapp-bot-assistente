@@ -171,55 +171,75 @@ async function processarMensagem(msg) {
   }
 }
 
-// Prefixos das respostas do bot — evita loop infinito
+// Prefixos das respostas do bot — evita reprocessar
 const BOT_PREFIXES = ['🎤', '📝', '📅', '📋', '✅', '🤔', '❌', '⏳'];
 
-// Função central: verifica se a mensagem é do grupo certo e processa
-async function handleGrupo(msg, evento) {
-  const debugEntry = {
-    evento,
-    hora: new Date().toISOString(),
-    fromMe: msg.fromMe,
-    type: msg.type,
-    body: msg.body?.substring(0, 80),
-    from: msg.from,
-    author: msg.author,
-  };
-  ultimasMensagens.unshift(debugEntry);
-  if (ultimasMensagens.length > 20) ultimasMensagens.pop();
-  console.log(`📨 ${evento}:`, JSON.stringify(debugEntry));
+// IDs de mensagens já processadas (evita duplicatas)
+const processadas = new Set();
 
-  // Só processa mensagens de grupos
-  if (!msg.from?.endsWith('@g.us')) return;
+// POLLING: verifica mensagens novas no grupo a cada 5 segundos
+// (substitui eventos que não funcionam no ambiente Railway/Puppeteer)
+let ultimoTimestamp = Math.floor(Date.now() / 1000); // segundos Unix
 
-  // Ignora respostas do próprio bot
-  if (BOT_PREFIXES.some(p => msg.body?.startsWith(p))) return;
+async function verificarMensagensNovas() {
+  if (!botPronto) return;
 
   const nomeGrupo = process.env.WHATSAPP_GROUP;
-  if (!nomeGrupo) {
-    console.log('⚠️ WHATSAPP_GROUP não configurado');
-    return;
-  }
+  if (!nomeGrupo) return;
 
   try {
-    const chat = await msg.getChat();
-    if (chat.name !== nomeGrupo) return;
-    console.log(`✅ Mensagem do grupo "${nomeGrupo}" — processando...`);
-    await processarMensagem(msg);
+    const chats = await client.getChats();
+    const grupo = chats.find(c => c.isGroup && c.name === nomeGrupo);
+    if (!grupo) return;
+
+    const msgs = await grupo.fetchMessages({ limit: 10 });
+
+    for (const msg of msgs) {
+      const msgId = msg.id._serialized;
+
+      // Só mensagens mais novas que o último check
+      if (msg.timestamp <= ultimoTimestamp) continue;
+      // Não reprocessar
+      if (processadas.has(msgId)) continue;
+
+      processadas.add(msgId);
+
+      // Limpar set antigo (manter só os últimos 200)
+      if (processadas.size > 200) {
+        const [primeiro] = processadas;
+        processadas.delete(primeiro);
+      }
+
+      // Ignorar respostas do próprio bot
+      if (BOT_PREFIXES.some(p => msg.body?.startsWith(p))) continue;
+
+      const debugEntry = {
+        evento: 'poll',
+        hora: new Date().toISOString(),
+        fromMe: msg.fromMe,
+        type: msg.type,
+        body: msg.body?.substring(0, 80),
+        author: msg.author,
+      };
+      ultimasMensagens.unshift(debugEntry);
+      if (ultimasMensagens.length > 20) ultimasMensagens.pop();
+      console.log('📨 poll:', JSON.stringify(debugEntry));
+
+      await processarMensagem(msg);
+    }
+
+    ultimoTimestamp = Math.floor(Date.now() / 1000);
   } catch (err) {
-    console.error('❌ Erro ao verificar grupo:', err.message);
+    console.error('❌ Erro no polling:', err.message);
   }
 }
 
-// Mensagens RECEBIDAS de outros no grupo
-client.on('message', async (msg) => {
-  await handleGrupo(msg, 'message');
-});
-
-// Mensagens que VOCÊ MESMO envia no grupo (mesmo aparelho)
-client.on('message_create', async (msg) => {
-  if (!msg.fromMe) return; // só as suas próprias
-  await handleGrupo(msg, 'message_create');
+// Inicia polling 10s após o bot conectar (espera estabilizar)
+client.on('ready', () => {
+  setTimeout(() => {
+    console.log('🔄 Iniciando polling de mensagens...');
+    setInterval(verificarMensagensNovas, 5000);
+  }, 10000);
 });
 
 client.initialize();
@@ -408,7 +428,7 @@ async function criarCardTrello(dados) {
         name: `Prioridade ${dados.prioridade || 'média'}`,
       },
     });
-  } catch (_) { /* label é opcional */ }
+  } catch (_) {}
 
   return resCard.data;
 }
@@ -423,7 +443,5 @@ function formatarDataHora(isoString) {
       weekday: 'long', day: '2-digit', month: 'long',
       year: 'numeric', hour: '2-digit', minute: '2-digit',
     });
-  } catch (_) {
-    return isoString;
-  }
+  } catch (_) { return isoString; }
 }
