@@ -171,10 +171,13 @@ async function processarMensagem(msg) {
   }
 }
 
-// Evento 'message' — dispara para mensagens RECEBIDAS de outros no grupo
-client.on('message', async (msg) => {
+// Prefixos das respostas do bot — evita loop infinito
+const BOT_PREFIXES = ['🎤', '📝', '📅', '📋', '✅', '🤔', '❌', '⏳'];
+
+// Função central: verifica se a mensagem é do grupo certo e processa
+async function handleGrupo(msg, evento) {
   const debugEntry = {
-    evento: 'message',
+    evento,
     hora: new Date().toISOString(),
     fromMe: msg.fromMe,
     type: msg.type,
@@ -184,15 +187,17 @@ client.on('message', async (msg) => {
   };
   ultimasMensagens.unshift(debugEntry);
   if (ultimasMensagens.length > 20) ultimasMensagens.pop();
-  console.log('📨 message:', JSON.stringify(debugEntry));
+  console.log(`📨 ${evento}:`, JSON.stringify(debugEntry));
 
   // Só processa mensagens de grupos
   if (!msg.from?.endsWith('@g.us')) return;
 
-  // Verifica se é o grupo configurado
+  // Ignora respostas do próprio bot
+  if (BOT_PREFIXES.some(p => msg.body?.startsWith(p))) return;
+
   const nomeGrupo = process.env.WHATSAPP_GROUP;
   if (!nomeGrupo) {
-    console.log('⚠️ WHATSAPP_GROUP não configurado nas variáveis de ambiente');
+    console.log('⚠️ WHATSAPP_GROUP não configurado');
     return;
   }
 
@@ -204,6 +209,17 @@ client.on('message', async (msg) => {
   } catch (err) {
     console.error('❌ Erro ao verificar grupo:', err.message);
   }
+}
+
+// Mensagens RECEBIDAS de outros no grupo
+client.on('message', async (msg) => {
+  await handleGrupo(msg, 'message');
+});
+
+// Mensagens que VOCÊ MESMO envia no grupo (mesmo aparelho)
+client.on('message_create', async (msg) => {
+  if (!msg.fromMe) return; // só as suas próprias
+  await handleGrupo(msg, 'message_create');
 });
 
 client.initialize();
