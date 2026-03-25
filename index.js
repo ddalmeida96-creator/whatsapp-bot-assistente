@@ -10,22 +10,24 @@ const fs = require('fs');
 const path = require('path');
 
 // ============================================================
-// CONFIGURAÇÃO EXPRESS (exibe QR code no navegador)
+// CONFIGURAÃÃO EXPRESS (exibe QR code no navegador)
 // ============================================================
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 let qrCodeAtual = null;
 let botPronto = false;
-let ultimasMensagens = []; // debug: últimas 20 mensagens recebidas
-let ultimosErros = [];     // debug: últimos 5 erros
+let ultimasMensagens = []; // debug: Ãºltimas 20 mensagens recebidas
+let ultimosErros = [];     // debug: Ãºltimos 5 erros
+let ultimoPollInfo = null; // debug: resultado do Ãºltimo poll
 
-// Endpoint de debug — mostra o que o bot recebeu
+// Endpoint de debug â mostra o que o bot recebeu
 app.get('/debug', (req, res) => {
   res.json({
     status: botPronto ? 'online' : 'offline',
     uptime_segundos: Math.round(process.uptime()),
     ultima_verificacao: new Date().toISOString(),
+    ultimo_poll: ultimoPollInfo,
     ultimas_mensagens: ultimasMensagens,
     ultimos_erros: ultimosErros,
   });
@@ -35,8 +37,8 @@ app.get('/', async (req, res) => {
   if (botPronto) {
     return res.send(`
       <html><body style="font-family:sans-serif;text-align:center;padding:40px">
-        <h1>✅ Bot WhatsApp está online!</h1>
-        <p>O bot está conectado e funcionando normalmente.</p>
+        <h1>â Bot WhatsApp estÃ¡ online!</h1>
+        <p>O bot estÃ¡ conectado e funcionando normalmente.</p>
       </body></html>
     `);
   }
@@ -44,24 +46,24 @@ app.get('/', async (req, res) => {
     const qrImagem = await qrcode.toDataURL(qrCodeAtual);
     return res.send(`
       <html><body style="font-family:sans-serif;text-align:center;padding:40px">
-        <h1>📱 Escaneie o QR Code com seu WhatsApp</h1>
-        <p>Abra o WhatsApp → <b>Aparelhos conectados</b> → <b>Conectar aparelho</b></p>
+        <h1>ð± Escaneie o QR Code com seu WhatsApp</h1>
+        <p>Abra o WhatsApp â <b>Aparelhos conectados</b> â <b>Conectar aparelho</b></p>
         <img src="${qrImagem}" style="width:280px;border:1px solid #ccc;border-radius:8px"/>
-        <p><small>Se o QR expirar, recarregue a página.</small></p>
+        <p><small>Se o QR expirar, recarregue a pÃ¡gina.</small></p>
         <meta http-equiv="refresh" content="30">
       </body></html>
     `);
   }
   res.send(`
     <html><body style="font-family:sans-serif;text-align:center;padding:40px">
-      <h1>⏳ Inicializando bot...</h1>
+      <h1>â³ Inicializando bot...</h1>
       <p>Aguarde alguns segundos e recarregue.</p>
       <meta http-equiv="refresh" content="3">
     </body></html>
   `);
 });
 
-app.listen(PORT, () => console.log(`🌐 Servidor rodando na porta ${PORT}`));
+app.listen(PORT, () => console.log(`ð Servidor rodando na porta ${PORT}`));
 
 // ============================================================
 // CLIENTE WHATSAPP
@@ -85,37 +87,37 @@ const client = new Client({
 client.on('qr', (qr) => {
   qrCodeAtual = qr;
   qrcodeTerminal.generate(qr, { small: true });
-  console.log('📱 QR Code gerado! Acesse a URL do bot para escanear.');
+  console.log('ð± QR Code gerado! Acesse a URL do bot para escanear.');
 });
 
 client.on('ready', () => {
   botPronto = true;
   qrCodeAtual = null;
-  console.log('✅ Bot WhatsApp conectado e pronto!');
+  console.log('â Bot WhatsApp conectado e pronto!');
 });
 
 client.on('disconnected', (reason) => {
   botPronto = false;
-  console.log('⚠️ Bot desconectado:', reason);
+  console.log('â ï¸ Bot desconectado:', reason);
 });
 
 // ============================================================
-// HANDLER DE MENSAGENS — escuta apenas o grupo configurado
+// HANDLER DE MENSAGENS â escuta apenas o grupo configurado
 // ============================================================
 async function processarMensagem(msg) {
   try {
     let texto = '';
 
     if (msg.type === 'ptt' || msg.type === 'audio') {
-      console.log('🎤 Áudio recebido, transcrevendo...');
-      await msg.reply('🎤 Recebi seu áudio! Transcrevendo...');
+      console.log('ð¤ Ãudio recebido, transcrevendo...');
+      await msg.reply('ð¤ Recebi seu Ã¡udio! Transcrevendo...');
       texto = await transcreverAudio(msg);
       if (!texto) {
-        await msg.reply('❌ Não consegui transcrever o áudio. Tente novamente.');
+        await msg.reply('â NÃ£o consegui transcrever o Ã¡udio. Tente novamente.');
         return;
       }
-      console.log(`📝 Transcrição: ${texto}`);
-      await msg.reply(`📝 *Transcrição:* ${texto}\n\n⏳ Processando...`);
+      console.log(`ð TranscriÃ§Ã£o: ${texto}`);
+      await msg.reply(`ð *TranscriÃ§Ã£o:* ${texto}\n\nâ³ Processando...`);
 
     } else if (msg.type === 'chat' && msg.body?.trim()) {
       texto = msg.body.trim();
@@ -125,60 +127,60 @@ async function processarMensagem(msg) {
     }
 
     const dados = await classificarEExtrair(texto);
-    console.log('🤖 Classificação:', JSON.stringify(dados));
+    console.log('ð¤ ClassificaÃ§Ã£o:', JSON.stringify(dados));
 
     if (dados.tipo === 'compromisso') {
-      await msg.reply('📅 Criando evento no Google Agenda...');
+      await msg.reply('ð Criando evento no Google Agenda...');
       await criarEventoGoogle(dados);
       await msg.reply(
-        `✅ *Compromisso criado!*\n\n` +
-        `📌 *${dados.titulo}*\n` +
-        `🗓 ${formatarDataHora(dados.data_hora)}\n` +
-        `⏱ Duração: ${dados.duracao_minutos || 60} min\n` +
-        `📍 ${dados.local || 'Sem local definido'}\n` +
-        `📝 ${dados.descricao || ''}`
+        `â *Compromisso criado!*\n\n` +
+        `ð *${dados.titulo}*\n` +
+        `ð ${formatarDataHora(dados.data_hora)}\n` +
+        `â± DuraÃ§Ã£o: ${dados.duracao_minutos || 60} min\n` +
+        `ð ${dados.local || 'Sem local definido'}\n` +
+        `ð ${dados.descricao || ''}`
       );
 
     } else if (dados.tipo === 'tarefa') {
-      await msg.reply('📋 Criando card no Trello...');
+      await msg.reply('ð Criando card no Trello...');
       await criarCardTrello(dados);
       await msg.reply(
-        `✅ *Tarefa criada no Trello!*\n\n` +
-        `📌 *${dados.titulo}*\n` +
-        `🔴 Prioridade: ${dados.prioridade || 'média'}\n\n` +
-        `💡 *Sugestão de resolução:*\n${dados.sugestao_resolucao}`
+        `â *Tarefa criada no Trello!*\n\n` +
+        `ð *${dados.titulo}*\n` +
+        `ð´ Prioridade: ${dados.prioridade || 'mÃ©dia'}\n\n` +
+        `ð¡ *SugestÃ£o de resoluÃ§Ã£o:*\n${dados.sugestao_resolucao}`
       );
 
     } else {
       await msg.reply(
-        `🤔 Não identifiquei como compromisso ou tarefa.\n\n` +
-        `Tente ser mais específico! Exemplos:\n` +
-        `• _"Reunião com João amanhã às 15h no escritório"_\n` +
-        `• _"Preciso corrigir o bug de login no sistema"_`
+        `ð¤ NÃ£o identifiquei como compromisso ou tarefa.\n\n` +
+        `Tente ser mais especÃ­fico! Exemplos:\n` +
+        `â¢ _"ReuniÃ£o com JoÃ£o amanhÃ£ Ã s 15h no escritÃ³rio"_\n` +
+        `â¢ _"Preciso corrigir o bug de login no sistema"_`
       );
     }
 
   } catch (error) {
-    console.error('❌ Erro ao processar mensagem:', error.message);
+    console.error('â Erro ao processar mensagem:', error.message);
     const errEntry = { hora: new Date().toISOString(), erro: error.message };
     ultimosErros.unshift(errEntry);
     if (ultimosErros.length > 5) ultimosErros.pop();
     try {
-      await msg.reply('❌ Ocorreu um erro interno: ' + error.message);
+      await msg.reply('â Ocorreu um erro interno: ' + error.message);
     } catch (e2) {
-      console.error('❌ Falha ao enviar mensagem de erro:', e2.message);
+      console.error('â Falha ao enviar mensagem de erro:', e2.message);
     }
   }
 }
 
-// Prefixos das respostas do bot — evita reprocessar
-const BOT_PREFIXES = ['🎤', '📝', '📅', '📋', '✅', '🤔', '❌', '⏳'];
+// Prefixos das respostas do bot â evita reprocessar
+const BOT_PREFIXES = ['ð¤', 'ð', 'ð', 'ð', 'â', 'ð¤', 'â', 'â³'];
 
-// IDs de mensagens já processadas (evita duplicatas)
+// IDs de mensagens jÃ¡ processadas (evita duplicatas)
 const processadas = new Set();
 
 // POLLING: verifica mensagens novas no grupo a cada 5 segundos
-// (substitui eventos que não funcionam no ambiente Railway/Puppeteer)
+// (substitui eventos que nÃ£o funcionam no ambiente Railway/Puppeteer)
 let ultimoTimestamp = Math.floor(Date.now() / 1000); // segundos Unix
 
 async function verificarMensagensNovas() {
@@ -189,28 +191,44 @@ async function verificarMensagensNovas() {
 
   try {
     const chats = await client.getChats();
+    const grupos = chats.filter(c => c.isGroup).map(c => c.name);
     const grupo = chats.find(c => c.isGroup && c.name === nomeGrupo);
-    if (!grupo) return;
+
+    ultimoPollInfo = {
+      hora: new Date().toISOString(),
+      total_chats: chats.length,
+      grupos_encontrados: grupos,
+      grupo_alvo: nomeGrupo,
+      grupo_achou: !!grupo,
+      ultimo_timestamp: ultimoTimestamp,
+    };
+
+    if (!grupo) {
+      console.log('â ï¸ Grupo nÃ£o encontrado. Grupos disponÃ­veis:', grupos.join(', '));
+      return;
+    }
 
     const msgs = await grupo.fetchMessages({ limit: 10 });
+    ultimoPollInfo.msgs_buscadas = msgs.length;
+    ultimoPollInfo.timestamps_msgs = msgs.map(m => m.timestamp);
 
     for (const msg of msgs) {
       const msgId = msg.id._serialized;
 
-      // Só mensagens mais novas que o último check
+      // SÃ³ mensagens mais novas que o Ãºltimo check
       if (msg.timestamp <= ultimoTimestamp) continue;
-      // Não reprocessar
+      // NÃ£o reprocessar
       if (processadas.has(msgId)) continue;
 
       processadas.add(msgId);
 
-      // Limpar set antigo (manter só os últimos 200)
+      // Limpar set antigo (manter sÃ³ os Ãºltimos 200)
       if (processadas.size > 200) {
         const [primeiro] = processadas;
         processadas.delete(primeiro);
       }
 
-      // Ignorar respostas do próprio bot
+      // Ignorar respostas do prÃ³prio bot
       if (BOT_PREFIXES.some(p => msg.body?.startsWith(p))) continue;
 
       const debugEntry = {
@@ -223,21 +241,21 @@ async function verificarMensagensNovas() {
       };
       ultimasMensagens.unshift(debugEntry);
       if (ultimasMensagens.length > 20) ultimasMensagens.pop();
-      console.log('📨 poll:', JSON.stringify(debugEntry));
+      console.log('ð¨ poll:', JSON.stringify(debugEntry));
 
       await processarMensagem(msg);
     }
 
     ultimoTimestamp = Math.floor(Date.now() / 1000);
   } catch (err) {
-    console.error('❌ Erro no polling:', err.message);
+    console.error('â Erro no polling:', err.message);
   }
 }
 
-// Inicia polling 10s após o bot conectar (espera estabilizar)
+// Inicia polling 10s apÃ³s o bot conectar (espera estabilizar)
 client.on('ready', () => {
   setTimeout(() => {
-    console.log('🔄 Iniciando polling de mensagens...');
+    console.log('ð Iniciando polling de mensagens...');
     setInterval(verificarMensagensNovas, 5000);
   }, 10000);
 });
@@ -245,7 +263,7 @@ client.on('ready', () => {
 client.initialize();
 
 // ============================================================
-// OPENAI — TRANSCRIÇÃO DE ÁUDIO
+// OPENAI â TRANSCRIÃÃO DE ÃUDIO
 // ============================================================
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -267,13 +285,13 @@ async function transcreverAudio(msg) {
     fs.unlinkSync(tmpPath);
     return transcricao.text;
   } catch (err) {
-    console.error('Erro na transcrição:', err.message);
+    console.error('Erro na transcriÃ§Ã£o:', err.message);
     return null;
   }
 }
 
 // ============================================================
-// OPENAI — CLASSIFICAÇÃO E EXTRAÇÃO DE DADOS
+// OPENAI â CLASSIFICAÃÃO E EXTRAÃÃO DE DADOS
 // ============================================================
 async function classificarEExtrair(texto) {
   const agora = new Date().toLocaleString('pt-BR', {
@@ -282,19 +300,19 @@ async function classificarEExtrair(texto) {
     hour: '2-digit', minute: '2-digit',
   });
 
-  const prompt = `Hoje é ${agora}. Analise o texto abaixo e responda APENAS com JSON válido, sem markdown.
+  const prompt = `Hoje Ã© ${agora}. Analise o texto abaixo e responda APENAS com JSON vÃ¡lido, sem markdown.
 
 Texto: "${texto}"
 
 REGRAS:
-- Se for compromisso/evento/reunião/consulta → tipo "compromisso"
-- Se for tarefa/problema/bug/pendência → tipo "tarefa"
-- Se não identificar claramente → tipo "indefinido"
+- Se for compromisso/evento/reuniÃ£o/consulta â tipo "compromisso"
+- Se for tarefa/problema/bug/pendÃªncia â tipo "tarefa"
+- Se nÃ£o identificar claramente â tipo "indefinido"
 
 Para COMPROMISSO, retorne:
 {
   "tipo": "compromisso",
-  "titulo": "título curto e claro do evento",
+  "titulo": "tÃ­tulo curto e claro do evento",
   "data_hora": "ISO 8601 com timezone, ex: 2024-03-25T14:00:00-03:00",
   "duracao_minutos": 60,
   "local": "local ou null",
@@ -304,9 +322,9 @@ Para COMPROMISSO, retorne:
 Para TAREFA, retorne:
 {
   "tipo": "tarefa",
-  "titulo": "título curto da tarefa",
-  "descricao_problema": "descrição clara do problema",
-  "sugestao_resolucao": "sugestão prática e detalhada de como resolver",
+  "titulo": "tÃ­tulo curto da tarefa",
+  "descricao_problema": "descriÃ§Ã£o clara do problema",
+  "sugestao_resolucao": "sugestÃ£o prÃ¡tica e detalhada de como resolver",
   "prioridade": "alta ou media ou baixa",
   "data_entrega": "ISO 8601 ou null"
 }
@@ -334,14 +352,16 @@ function getGoogleAuth() {
 
   const auth = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 
+  // Token salvo como variÃ¡vel de ambiente (JSON em string)
   const tokenJson = process.env.GOOGLE_TOKEN;
-  if (!tokenJson) throw new Error('GOOGLE_TOKEN não configurado. Rode: npm run auth');
+  if (!tokenJson) throw new Error('GOOGLE_TOKEN nÃ£o configurado. Rode: npm run auth');
 
   auth.setCredentials(JSON.parse(tokenJson));
 
+  // Atualiza token automaticamente quando expirar
   auth.on('tokens', (tokens) => {
     if (tokens.refresh_token) {
-      console.log('🔄 Token do Google atualizado.');
+      console.log('ð Token do Google atualizado.');
     }
   });
 
@@ -373,7 +393,7 @@ async function criarEventoGoogle(dados) {
   };
 
   const result = await calendar.events.insert({ calendarId: 'primary', resource: evento });
-  console.log('📅 Evento criado:', result.data.htmlLink);
+  console.log('ð Evento criado:', result.data.htmlLink);
   return result.data;
 }
 
@@ -402,9 +422,10 @@ async function criarCardTrello(dados) {
   const cor = coresPrioridade[dados.prioridade] || 'yellow';
 
   const descricao =
-    `## 🔍 Problema\n${dados.descricao_problema}\n\n` +
-    `## 💡 Sugestão de Resolução\n${dados.sugestao_resolucao}`;
+    `## ð Problema\n${dados.descricao_problema}\n\n` +
+    `## ð¡ SugestÃ£o de ResoluÃ§Ã£o\n${dados.sugestao_resolucao}`;
 
+  // Cria o card
   const resCard = await axios.post('https://api.trello.com/1/cards', null, {
     params: {
       key: process.env.TRELLO_API_KEY,
@@ -417,18 +438,19 @@ async function criarCardTrello(dados) {
   });
 
   const cardId = resCard.data.id;
-  console.log('📋 Card criado:', resCard.data.shortUrl);
+  console.log('ð Card criado:', resCard.data.shortUrl);
 
+  // Adiciona label de prioridade
   try {
     await axios.post(`https://api.trello.com/1/cards/${cardId}/labels`, null, {
       params: {
         key: process.env.TRELLO_API_KEY,
         token: process.env.TRELLO_TOKEN,
         color: cor,
-        name: `Prioridade ${dados.prioridade || 'média'}`,
+        name: `Prioridade ${dados.prioridade || 'mÃ©dia'}`,
       },
     });
-  } catch (_) {}
+  } catch (_) { /* label Ã© opcional */ }
 
   return resCard.data;
 }
@@ -443,5 +465,7 @@ function formatarDataHora(isoString) {
       weekday: 'long', day: '2-digit', month: 'long',
       year: 'numeric', hour: '2-digit', minute: '2-digit',
     });
-  } catch (_) { return isoString; }
+  } catch (_) {
+    return isoString;
+  }
 }
