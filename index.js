@@ -249,6 +249,10 @@ async function verificarMensagensNovas() {
     ultimoTimestamp = Math.floor(Date.now() / 1000);
   } catch (err) {
     console.error('â Erro no polling:', err.message);
+    const errEntry = { hora: new Date().toISOString(), fonte: 'polling', erro: err.message };
+    ultimosErros.unshift(errEntry);
+    if (ultimosErros.length > 5) ultimosErros.pop();
+    ultimoPollInfo = { hora: new Date().toISOString(), erro: err.message };
   }
 }
 
@@ -261,9 +265,7 @@ client.on('ready', () => {
 });
 
 client.initialize();
-
-// ============================================================
-// OPENAI â TRANSCRIÃÃO DE ÃUDIO
+/ TRANSCRIÃÃO DE ÃUDIO
 // ============================================================
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
